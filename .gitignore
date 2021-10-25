@@ -8,6 +8,9 @@
 # Unignore all dirs
 !*/
 
+# Unignore certain files without extension
+!Makefile
+
 ### Above combination will ignore all files without extension ###
 
 # Ignore `bin` dir
