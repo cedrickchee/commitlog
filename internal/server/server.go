@@ -4,12 +4,13 @@ import (
 	"context"
 
 	api "github.com/cedrickchee/commitlog/api/v1"
+	"google.golang.org/grpc"
 )
 
 // CommitLog allow service to use any given log implementation that satisfies
 // this interface.
 //
-// **Depedency inversion with interfaces** is good practice.
+// **Dependency inversion with interfaces** is good practice.
 // It would be best if our service weren't tied to a specific log
 // implementation. Instead, we want to pass in a log implementation based on our
 // needs at the time. We can make this possible by having our service depend on
@@ -52,10 +53,17 @@ func newgrpcServer(config *Config) (srv *grpcServer, err error) {
 	return srv, nil
 }
 
-// func NewGRPCServer(config *Config) (*grpcServer, error) {
-// 	gsrv := grpc.NewServer()
-
-// }
+// NewGRPCServer enables our users to instantiate a new service, create a gRPC
+// server, and register our service to that server.
+func NewGRPCServer(config *Config) (*grpc.Server, error) {
+	gsrv := grpc.NewServer()
+	srv, err := newgrpcServer(config)
+	if err != nil {
+		return nil, err
+	}
+	api.RegisterLogServer(gsrv, srv)
+	return gsrv, nil
+}
 
 // Produce handles the requests made by clients to produce to the server's log.
 func (s *grpcServer) Produce(ctx context.Context, req *api.ProduceRequest) (*api.ProduceResponse, error) {
