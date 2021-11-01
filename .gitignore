@@ -31,3 +31,7 @@
 
 # Output of the go test tool built-in support for several kinds of profiling
 *.log
+
+# Secrets, keys, sensitive configurations
+.config/
+env
