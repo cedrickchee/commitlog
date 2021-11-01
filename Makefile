@@ -6,9 +6,11 @@ init:
 
 .PHONY: gencert
 gencert:
+	# Generating self-signed root CA certificate and private key
 	cfssl gencert \
 			-initca test/ca-csr.json | cfssljson -bare ca
 	
+	# Generating self-signed server certificate and private key
 	cfssl gencert \
 			-ca=ca.pem \
 			-ca-key=ca-key.pem \
