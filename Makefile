@@ -1,8 +1,10 @@
-CONFIG_PATH=.config/
+ROOT_DIR:=$(strip $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST)))))
+
+export CONFIG_DIR=${ROOT_DIR}/.config
 
 .PHONY: init
 init:
-	mkdir -p ${CONFIG_PATH}
+	mkdir -p ${CONFIG_DIR}
 
 .PHONY: gencert
 gencert:
@@ -17,7 +19,7 @@ gencert:
 			-config=test/ca-config.json \
 			-profile=server \
 			test/server-csr.json | cfssljson -bare server
-	mv *.pem *.csr ${CONFIG_PATH}
+	mv *.pem *.csr ${CONFIG_DIR}
 
 .PHONY: compile
 compile:
