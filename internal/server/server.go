@@ -55,8 +55,8 @@ func newgrpcServer(config *Config) (srv *grpcServer, err error) {
 
 // NewGRPCServer enables our users to instantiate a new service, create a gRPC
 // server, and register our service to that server.
-func NewGRPCServer(config *Config) (*grpc.Server, error) {
-	gsrv := grpc.NewServer()
+func NewGRPCServer(config *Config, opts ...grpc.ServerOption) (*grpc.Server, error) {
+	gsrv := grpc.NewServer(opts...)
 	srv, err := newgrpcServer(config)
 	if err != nil {
 		return nil, err
