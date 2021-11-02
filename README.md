@@ -39,26 +39,39 @@ mkdir -p .config/
 $ make gencert
 # Generating self-signed root CA certificate and private key
 cfssl gencert \
-    -initca test/ca-csr.json | cfssljson -bare ca
-2021/11/01 23:18:02 [INFO] generating a new CA key and certificate from CSR
-2021/11/01 23:18:02 [INFO] generate received request
-2021/11/01 23:18:02 [INFO] received CSR
-2021/11/01 23:18:02 [INFO] generating key: rsa-2048
-2021/11/01 23:18:02 [INFO] encoded CSR
-2021/11/01 23:18:02 [INFO] signed certificate with serial number 165626744698346719969130622424146649535931352112
+		-initca test/ca-csr.json | cfssljson -bare ca
+2021/11/02 20:49:49 [INFO] generating a new CA key and certificate from CSR
+2021/11/02 20:49:49 [INFO] generate received request
+2021/11/02 20:49:49 [INFO] received CSR
+2021/11/02 20:49:49 [INFO] generating key: rsa-2048
+2021/11/02 20:49:50 [INFO] encoded CSR
+2021/11/02 20:49:50 [INFO] signed certificate with serial number 609991520964339114875917627510871516675247155359
 
-# Generating certificate signing request and private key
+# Generating self-signed server certificate and private key
 cfssl gencert \
-    -ca=ca.pem \
-    -ca-key=ca-key.pem \
-    -config=test/ca-config.json \
-    -profile=server \
-    test/server-csr.json | cfssljson -bare server
-2021/11/01 23:18:02 [INFO] generate received request
-2021/11/01 23:18:02 [INFO] received CSR
-2021/11/01 23:18:02 [INFO] generating key: rsa-2048
-2021/11/01 23:18:02 [INFO] encoded CSR
-2021/11/01 23:18:02 [INFO] signed certificate with serial number 142921455324324117801606458104942787774901890280
+		-ca=ca.pem \
+		-ca-key=ca-key.pem \
+		-config=test/ca-config.json \
+		-profile=server \
+		test/server-csr.json | cfssljson -bare server
+2021/11/02 20:49:50 [INFO] generate received request
+2021/11/02 20:49:50 [INFO] received CSR
+2021/11/02 20:49:50 [INFO] generating key: rsa-2048
+2021/11/02 20:49:50 [INFO] encoded CSR
+2021/11/02 20:49:50 [INFO] signed certificate with serial number 722518663172071887972604384793191499654476226861
 
-mv *.pem *.csr .config/
+# Generating cert and private key for your client
+cfssl gencert \
+		-ca=ca.pem \
+		-ca-key=ca-key.pem \
+		-config=test/ca-config.json \
+		-profile=client \
+		test/client-csr.json | cfssljson -bare client
+2021/11/02 20:49:50 [INFO] generate received request
+2021/11/02 20:49:50 [INFO] received CSR
+2021/11/02 20:49:50 [INFO] generating key: rsa-2048
+2021/11/02 20:49:50 [INFO] encoded CSR
+2021/11/02 20:49:50 [INFO] signed certificate with serial number 713475798219442340274518763748614246528384531621
+
+mv *.pem *.csr /home/neo/dev/work/repo/github/commitlog/.config
 ```
