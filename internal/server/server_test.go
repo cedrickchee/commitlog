@@ -6,11 +6,14 @@ import (
 	"net"
 	"testing"
 
-	api "github.com/cedrickchee/commitlog/api/v1"
-	"github.com/cedrickchee/commitlog/internal/log"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
+
+	api "github.com/cedrickchee/commitlog/api/v1"
+	"github.com/cedrickchee/commitlog/internal/config"
+	"github.com/cedrickchee/commitlog/internal/log"
 )
 
 // TestServer defines a list of test cases and then runs a subtest for each
@@ -47,18 +50,65 @@ func setupTest(t *testing.T, fn func(*Config)) (
 	//
 	// The `0` port is useful for when we don't care what port we use since `0`
 	// will automatically assign us a free port.
-	l, err := net.Listen("tcp", ":0")
+	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	// Make an insecure connection to our listener and, with it, a client we'll
-	// use to hit our server with.
-	clientOptions := []grpc.DialOption{grpc.WithInsecure()}
-	cc, err := grpc.Dial(l.Addr().String(), clientOptions...)
+	/*newClient := func(crtPath, keyPath string) (
+		*grpc.ClientConn,
+		api.LogClient,
+		[]grpc.DialOption,
+	) {
+		tlsConfig, err := config.SetupTLSConfig(config.TLSConfig{
+			CertFile: crtPath,
+			KeyFile:  keyPath,
+			CAFile:   config.CAFile,
+			Server:   false,
+		})
+		require.NoError(t, err)
+		tlsCreds := credentials.NewTLS(tlsConfig)
+		// Make an secure connection to our listener and, with it, a client
+		// we'll use to hit our server with.
+		opts := []grpc.DialOption{grpc.WithTransportCredentials(tlsCreds)}
+		cc, err := grpc.Dial(l.Addr().String(), opts...)
+		require.NoError(t, err)
+		client := api.NewLogClient(cc)
+		return cc, client, opts
+	}*/
+
+	// Configure our client's TLS credentials to use our CA as the client's Root
+	// CA (the CA it will use to verify the server).
+	clientTLSConfig, err := config.SetupTLSConfig(config.TLSConfig{
+		CAFile: config.CAFile,
+	})
 	require.NoError(t, err)
+
+	clientCreds := credentials.NewTLS(clientTLSConfig)
+	// Tell the client to use those credentials for its connection.
+	// Make a secure connection to our listener and, with it, a client we'll use
+	// to hit our server with.
+	cc, err := grpc.Dial(
+		l.Addr().String(),
+		grpc.WithTransportCredentials(clientCreds),
+	)
+	require.NoError(t, err)
+
+	client = api.NewLogClient(cc)
+
+	// Hook up our server with its certificate and enable it to handle TLS
+	// connections.
+	serverTLSConfig, err := config.SetupTLSConfig(config.TLSConfig{
+		CertFile:      config.ServerCertFile,
+		KeyFile:       config.ServerKeyFile,
+		CAFile:        config.CAFile,
+		ServerAddress: l.Addr().String(),
+	})
+	require.NoError(t, err)
+	serverCreds := credentials.NewTLS(serverTLSConfig)
 
 	// Create our server
 	dir, err := ioutil.TempDir("", "server_test")
 	require.NoError(t, err)
+	// defer os.RemoveAll(dir)
 
 	clog, err := log.NewLog(dir, log.Config{})
 	require.NoError(t, err)
@@ -69,7 +119,9 @@ func setupTest(t *testing.T, fn func(*Config)) (
 	if fn != nil {
 		fn(cfg)
 	}
-	server, err := NewGRPCServer(cfg)
+	// Configure the server’s TLS credentials by pass those credentials as a
+	// gRPC ServerOption.
+	server, err := NewGRPCServer(cfg, grpc.Creds(serverCreds))
 	require.NoError(t, err)
 
 	// Serve requests in a goroutine because the `Serve` method is a blocking
@@ -79,13 +131,10 @@ func setupTest(t *testing.T, fn func(*Config)) (
 		server.Serve(l)
 	}()
 
-	client = api.NewLogClient(cc)
-
 	return client, cfg, func() {
 		server.Stop()
 		cc.Close()
 		l.Close()
-		clog.Remove()
 	}
 }
 
