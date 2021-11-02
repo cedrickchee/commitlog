@@ -40,12 +40,12 @@ $ make gencert
 # Generating self-signed root CA certificate and private key
 cfssl gencert \
 		-initca test/ca-csr.json | cfssljson -bare ca
-2021/11/02 20:49:49 [INFO] generating a new CA key and certificate from CSR
-2021/11/02 20:49:49 [INFO] generate received request
-2021/11/02 20:49:49 [INFO] received CSR
-2021/11/02 20:49:49 [INFO] generating key: rsa-2048
-2021/11/02 20:49:50 [INFO] encoded CSR
-2021/11/02 20:49:50 [INFO] signed certificate with serial number 609991520964339114875917627510871516675247155359
+2021/11/03 00:40:00 [INFO] generating a new CA key and certificate from CSR
+2021/11/03 00:40:00 [INFO] generate received request
+2021/11/03 00:40:00 [INFO] received CSR
+2021/11/03 00:40:00 [INFO] generating key: rsa-2048
+2021/11/03 00:40:01 [INFO] encoded CSR
+2021/11/03 00:40:01 [INFO] signed certificate with serial number 8147356830437551462081232968300531993326047229
 
 # Generating self-signed server certificate and private key
 cfssl gencert \
@@ -54,24 +54,38 @@ cfssl gencert \
 		-config=test/ca-config.json \
 		-profile=server \
 		test/server-csr.json | cfssljson -bare server
-2021/11/02 20:49:50 [INFO] generate received request
-2021/11/02 20:49:50 [INFO] received CSR
-2021/11/02 20:49:50 [INFO] generating key: rsa-2048
-2021/11/02 20:49:50 [INFO] encoded CSR
-2021/11/02 20:49:50 [INFO] signed certificate with serial number 722518663172071887972604384793191499654476226861
+2021/11/03 00:40:01 [INFO] generate received request
+2021/11/03 00:40:01 [INFO] received CSR
+2021/11/03 00:40:01 [INFO] generating key: rsa-2048
+2021/11/03 00:40:01 [INFO] encoded CSR
+2021/11/03 00:40:01 [INFO] signed certificate with serial number 402261474156200490360083500727362811589620720837
 
-# Generating cert and private key for your client
+# Generating multiple client certs and private keys
 cfssl gencert \
 		-ca=ca.pem \
 		-ca-key=ca-key.pem \
 		-config=test/ca-config.json \
 		-profile=client \
-		test/client-csr.json | cfssljson -bare client
-2021/11/02 20:49:50 [INFO] generate received request
-2021/11/02 20:49:50 [INFO] received CSR
-2021/11/02 20:49:50 [INFO] generating key: rsa-2048
-2021/11/02 20:49:50 [INFO] encoded CSR
-2021/11/02 20:49:50 [INFO] signed certificate with serial number 713475798219442340274518763748614246528384531621
+		-cn="root" \
+		test/client-csr.json | cfssljson -bare root-client
+2021/11/03 00:40:01 [INFO] generate received request
+2021/11/03 00:40:01 [INFO] received CSR
+2021/11/03 00:40:01 [INFO] generating key: rsa-2048
+2021/11/03 00:40:01 [INFO] encoded CSR
+2021/11/03 00:40:01 [INFO] signed certificate with serial number 627656603718368551111127300914672850426637790593
+
+cfssl gencert \
+		-ca=ca.pem \
+		-ca-key=ca-key.pem \
+		-config=test/ca-config.json \
+		-profile=client \
+		-cn="nobody" \
+		test/client-csr.json | cfssljson -bare nobody-client
+2021/11/03 00:40:01 [INFO] generate received request
+2021/11/03 00:40:01 [INFO] received CSR
+2021/11/03 00:40:01 [INFO] generating key: rsa-2048
+2021/11/03 00:40:01 [INFO] encoded CSR
+2021/11/03 00:40:01 [INFO] signed certificate with serial number 651985188211974854103183240288947068257645013148
 
 mv *.pem *.csr /home/neo/dev/work/repo/github/commitlog/.config
 ```
