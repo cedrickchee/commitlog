@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	api "github.com/cedrickchee/commitlog/api/v1"
+	"github.com/cedrickchee/commitlog/internal/auth"
 	"github.com/cedrickchee/commitlog/internal/config"
 	"github.com/cedrickchee/commitlog/internal/log"
 )
@@ -123,8 +124,12 @@ func setupTest(t *testing.T, fn func(*Config)) (
 	clog, err := log.NewLog(dir, log.Config{})
 	require.NoError(t, err)
 
+	authorizer, err := auth.New(config.ACLModelFile, config.ACLPolicyFile)
+	require.NoError(t, err)
+
 	cfg = &Config{
-		CommitLog: clog,
+		CommitLog:  clog,
+		Authorizer: authorizer,
 	}
 	if fn != nil {
 		fn(cfg)
