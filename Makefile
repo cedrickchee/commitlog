@@ -2,6 +2,9 @@ ROOT_DIR:=$(strip $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST)))))
 
 export CONFIG_DIR=${ROOT_DIR}/.config
 
+################################################################################
+# Develop
+################################################################################
 .PHONY: init
 init:
 	mkdir -p ${CONFIG_DIR}
@@ -38,6 +41,9 @@ gencert:
 
 	mv *.pem *.csr ${CONFIG_DIR}
 
+################################################################################
+# Build
+################################################################################
 .PHONY: compile
 compile:
 	protoc api/v1/*.proto \
@@ -47,6 +53,18 @@ compile:
 			--go-grpc_out=. \
 			--go-grpc_opt=paths=source_relative
 
+################################################################################
+# Test
+################################################################################
 .PHONY: test
-test:
+test: "${CONFIG_DIR}/policy.csv" "${CONFIG_DIR}/model.conf"
 	go test -race ./...
+
+#
+# Install the model file into the CONFIG_PATH so tests can find them
+#
+"${CONFIG_DIR}/model.conf":
+	cp test/model.conf "${CONFIG_DIR}/model.conf"
+
+"${CONFIG_DIR}/policy.csv":
+	cp test/policy.csv "${CONFIG_DIR}/policy.csv"
