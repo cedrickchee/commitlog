@@ -4,6 +4,7 @@ import (
 	"context"
 	"io/ioutil"
 	"net"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,8 @@ import (
 func TestServer(t *testing.T) {
 	tcases := map[string]func(
 		t *testing.T,
-		client api.LogClient,
+		rootClient api.LogClient,
+		nobodyClient api.LogClient,
 		config *Config,
 	){
 		"produce/consume a message to/from the log succeeeds": testProduceConsume,
@@ -30,16 +32,21 @@ func TestServer(t *testing.T) {
 	}
 	for scenario, fn := range tcases {
 		t.Run(scenario, func(t *testing.T) {
-			client, config, teardown := setupTest(t, nil)
+			rootClient, nobodyClient, config, teardown := setupTest(t, nil)
 			defer teardown()
-			fn(t, client, config)
+			// Pass both root and nobody clients to the test functions so they
+			// can use whatever client they need based on whether they're
+			// testing how the server works with an authorized or unauthorized
+			// client.
+			fn(t, rootClient, nobodyClient, config)
 		})
 	}
 }
 
 // setupTest is a helper function to set up each test case.
 func setupTest(t *testing.T, fn func(*Config)) (
-	client api.LogClient,
+	rootClient api.LogClient,
+	nobodyClient api.LogClient,
 	cfg *Config,
 	teardown func(),
 ) {
@@ -53,11 +60,14 @@ func setupTest(t *testing.T, fn func(*Config)) (
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	/*newClient := func(crtPath, keyPath string) (
+	// Helper function
+	newClient := func(crtPath, keyPath string) (
 		*grpc.ClientConn,
 		api.LogClient,
 		[]grpc.DialOption,
 	) {
+		// Configure our client's TLS credentials to use our CA as the client's
+		// Root CA (the CA it will use to verify the server).
 		tlsConfig, err := config.SetupTLSConfig(config.TLSConfig{
 			CertFile: crtPath,
 			KeyFile:  keyPath,
@@ -66,35 +76,30 @@ func setupTest(t *testing.T, fn func(*Config)) (
 		})
 		require.NoError(t, err)
 		tlsCreds := credentials.NewTLS(tlsConfig)
-		// Make an secure connection to our listener and, with it, a client
-		// we'll use to hit our server with.
+		// Tell the client to use those credentials for its connection.
+		// Make a secure connection to our listener and, with it, a client we'll
+		// use to hit our server with.
 		opts := []grpc.DialOption{grpc.WithTransportCredentials(tlsCreds)}
-		cc, err := grpc.Dial(l.Addr().String(), opts...)
+		conn, err := grpc.Dial(l.Addr().String(), opts...)
 		require.NoError(t, err)
-		client := api.NewLogClient(cc)
-		return cc, client, opts
-	}*/
+		client := api.NewLogClient(conn)
+		return conn, client, opts
+	}
 
-	// Configure our client's TLS credentials to use our CA as the client's Root
-	// CA (the CA it will use to verify the server).
-	clientTLSConfig, err := config.SetupTLSConfig(config.TLSConfig{
-		CertFile: config.ClientCertFile,
-		KeyFile:  config.ClientKeyFile,
-		CAFile:   config.CAFile,
-	})
-	require.NoError(t, err)
-
-	clientCreds := credentials.NewTLS(clientTLSConfig)
-	// Tell the client to use those credentials for its connection.
-	// Make a secure connection to our listener and, with it, a client we'll use
-	// to hit our server with.
-	cc, err := grpc.Dial(
-		l.Addr().String(),
-		grpc.WithTransportCredentials(clientCreds),
+	// Build two clients for testing our authorization setup.
+	//
+	// A superuser client who's permitted to produce and consume.
+	var rootConn *grpc.ClientConn
+	rootConn, rootClient, _ = newClient(
+		config.RootClientCertFile,
+		config.RootClientKeyFile,
 	)
-	require.NoError(t, err)
-
-	client = api.NewLogClient(cc)
+	// A nobody client who isn't permitted to do anything.
+	var nobodyConn *grpc.ClientConn
+	nobodyConn, nobodyClient, _ = newClient(
+		config.NobodyClientCertFile,
+		config.NobodyClientKeyFile,
+	)
 
 	// Hook up our server with its certificate and enable it to handle TLS
 	// connections.
@@ -111,7 +116,7 @@ func setupTest(t *testing.T, fn func(*Config)) (
 	// Create our server
 	dir, err := ioutil.TempDir("", "server_test")
 	require.NoError(t, err)
-	// defer os.RemoveAll(dir)
+	defer os.RemoveAll(dir)
 
 	clog, err := log.NewLog(dir, log.Config{})
 	require.NoError(t, err)
@@ -122,7 +127,7 @@ func setupTest(t *testing.T, fn func(*Config)) (
 	if fn != nil {
 		fn(cfg)
 	}
-	// Configure the server’s TLS credentials by pass those credentials as a
+	// Configure the server's TLS credentials by pass those credentials as a
 	// gRPC ServerOption.
 	server, err := NewGRPCServer(cfg, grpc.Creds(serverCreds))
 	require.NoError(t, err)
@@ -134,9 +139,10 @@ func setupTest(t *testing.T, fn func(*Config)) (
 		server.Serve(l)
 	}()
 
-	return client, cfg, func() {
+	return rootClient, nobodyClient, cfg, func() {
 		server.Stop()
-		cc.Close()
+		rootConn.Close()
+		nobodyConn.Close()
 		l.Close()
 	}
 }
@@ -144,7 +150,7 @@ func setupTest(t *testing.T, fn func(*Config)) (
 // testProduceConsume tests that producing and consuming works by using our
 // client and server to produce a record to the log, consume it back, and then
 // check that the record we sent is the same one we got back.
-func testProduceConsume(t *testing.T, client api.LogClient, config *Config) {
+func testProduceConsume(t *testing.T, client, _ api.LogClient, config *Config) {
 	ctx := context.Background()
 
 	want := &api.Record{
@@ -162,7 +168,7 @@ func testProduceConsume(t *testing.T, client api.LogClient, config *Config) {
 // testProduceConsumeStream is the streaming counterpart to
 // `testProduceConsume()`, testing that we can produce and consume through
 // streams.
-func testProduceConsumeStream(t *testing.T, client api.LogClient, config *Config) {
+func testProduceConsumeStream(t *testing.T, client, _ api.LogClient, config *Config) {
 	ctx := context.Background()
 
 	records := []*api.Record{
@@ -210,7 +216,7 @@ func testProduceConsumeStream(t *testing.T, client api.LogClient, config *Config
 // testConsumePastBoundary tests that our server responds with an
 // `api.ErrOffsetOutOfRange()` error when a client tries to consume beyond the
 // log's boundaries.
-func testConsumePastBoundary(t *testing.T, client api.LogClient, config *Config) {
+func testConsumePastBoundary(t *testing.T, client, _ api.LogClient, config *Config) {
 	ctx := context.Background()
 
 	produce, err := client.Produce(ctx, &api.ProduceRequest{
