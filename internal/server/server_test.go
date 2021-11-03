@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 
@@ -29,6 +30,7 @@ func TestServer(t *testing.T) {
 		"produce/consume a message to/from the log succeeeds": testProduceConsume,
 		"produce/consume stream succeeds":                     testProduceConsumeStream,
 		"consume past log boundary fails":                     testConsumePastBoundary,
+		"unauthorized fails":                                  testUnauthorized,
 	}
 	for scenario, fn := range tcases {
 		t.Run(scenario, func(t *testing.T) {
@@ -236,5 +238,37 @@ func testConsumePastBoundary(t *testing.T, client, _ api.LogClient, config *Conf
 	want := status.Code(api.ErrOffsetOutOfRange{}.GRPCStatus().Err())
 	if got != want {
 		t.Fatalf("got err: %v, want: %v", got, want)
+	}
+}
+
+// testUnauthorized checks that unauthorized clients are denied.
+func testUnauthorized(t *testing.T, _, client api.LogClient, config *Config) {
+	ctx := context.Background()
+
+	// Use the nobody client, which isn't permitted to do anything.
+	produce, err := client.Produce(ctx, &api.ProduceRequest{
+		Record: &api.Record{
+			Value: []byte("Hey, this is a test"),
+		},
+	})
+	if produce != nil {
+		t.Fatalf("produce response should be nil")
+	}
+	// Since our client isn't authorized, we want our server to deny the client,
+	// which we verify by checking the code on the returned error.
+	gotCode, wantCode := status.Code(err), codes.PermissionDenied
+	if gotCode != wantCode {
+		t.Fatalf("got code: %d, want: %d", gotCode, wantCode)
+	}
+
+	consume, err := client.Consume(ctx, &api.ConsumeRequest{
+		Offset: 0,
+	})
+	if consume != nil {
+		t.Fatalf("consume response should be nil")
+	}
+	gotCode, wantCode = status.Code(err), codes.PermissionDenied
+	if gotCode != wantCode {
+		t.Fatalf("got code: %d, want: %d", gotCode, wantCode)
 	}
 }
