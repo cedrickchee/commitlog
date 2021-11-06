@@ -68,3 +68,7 @@ test: "${CONFIG_DIR}/policy.csv" "${CONFIG_DIR}/model.conf"
 
 "${CONFIG_DIR}/policy.csv":
 	cp test/policy.csv "${CONFIG_DIR}/policy.csv"
+
+.PHONY: testserver
+testserver: "${CONFIG_DIR}/policy.csv" "${CONFIG_DIR}/model.conf"	
+	go test -v -race ./internal/server -debug=true
