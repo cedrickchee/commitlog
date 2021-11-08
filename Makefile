@@ -72,3 +72,7 @@ test: "${CONFIG_DIR}/policy.csv" "${CONFIG_DIR}/model.conf"
 .PHONY: testserver
 testserver: "${CONFIG_DIR}/policy.csv" "${CONFIG_DIR}/model.conf"	
 	go test -v -race ./internal/server -debug=true
+
+.PHONY: testsvcdisco
+testsvcdisco: "${CONFIG_DIR}/policy.csv" "${CONFIG_DIR}/model.conf"	
+	go test -v -race ./internal/discovery
