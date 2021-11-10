@@ -89,3 +89,24 @@ cfssl gencert \
 
 mv *.pem *.csr /home/neo/dev/work/repo/github/commitlog/.config
 ```
+
+# Test
+
+Now, run your tests with `$ make test`. If all is well, your tests pass and
+you’ve made a distributed service that can replicate data.
+
+```sh
+# Test output
+$ make test
+cp test/policy.csv "/home/neo/dev/work/repo/github/commitlog/.config/policy.csv"
+cp test/model.conf "/home/neo/dev/work/repo/github/commitlog/.config/model.conf"
+go test -race ./...
+?   	github.com/cedrickchee/commitlog/api/v1	[no test files]
+ok  	github.com/cedrickchee/commitlog/internal/agent	11.445s
+?   	github.com/cedrickchee/commitlog/internal/auth	[no test files]
+?   	github.com/cedrickchee/commitlog/internal/config	[no test files]
+ok  	github.com/cedrickchee/commitlog/internal/discovery	(cached)
+ok  	github.com/cedrickchee/commitlog/internal/log	(cached)
+ok  	github.com/cedrickchee/commitlog/internal/server	0.275s
+ok  	github.com/cedrickchee/commitlog/pkg/freeport	(cached)
+```
