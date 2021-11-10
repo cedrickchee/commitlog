@@ -42,14 +42,19 @@ type Config struct {
 	ServerTLSConfig *tls.Config
 	PeerTLSConfig   *tls.Config
 	DataDir         string
-	BindAddr        string
-	RPCPort         int
-	NodeName        string
-	StartJoinAddrs  []string
-	ACLModelFile    string
-	ACLPolicyFile   string
+	// Serf (discovery) listens on this address and port for gossiping.
+	// gRPC only listen on this address and get its port dynamically from the
+	// `RPCPort` field.
+	BindAddr string
+	// gRPC port
+	RPCPort        int
+	NodeName       string
+	StartJoinAddrs []string
+	ACLModelFile   string
+	ACLPolicyFile  string
 }
 
+// RPCAddr returns the address and port for gRPC server.
 func (c Config) RPCAddr() (string, error) {
 	host, _, err := net.SplitHostPort(c.BindAddr)
 	if err != nil {
