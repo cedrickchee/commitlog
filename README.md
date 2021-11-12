@@ -141,3 +141,46 @@ committed offset with its finite-state machine. All Raft servers run the same
 finite-state machine that defines how to handle each command.
 
 The recommended number of servers in a Raft cluster is three and five (odd number) because Raft will handle `(N–1)/2` failures, where `N` is the size of your cluster.
+
+Test the distributed log:
+
+```sh
+$ make testraft
+cp test/policy.csv "/home/neo/dev/work/repo/github/commitlog/.config/policy.csv"
+cp test/model.conf "/home/neo/dev/work/repo/github/commitlog/.config/model.conf"
+go test -v -race ./internal/log/distributed_test.go
+=== RUN   TestMultipleNodes
+2021-11-12T19:02:26.341+0800 [INFO]  raft: Initial configuration (index=0): []
+2021-11-12T19:02:26.342+0800 [INFO]  raft: Node at 127.0.0.1:24337 [Follower] entering Follower state (Leader: "")
+2021-11-12T19:02:26.423+0800 [WARN]  raft: Heartbeat timeout from "" reached, starting election
+2021-11-12T19:02:26.423+0800 [INFO]  raft: Node at 127.0.0.1:24337 [Candidate] entering Candidate state in term 2
+2021-11-12T19:02:26.430+0800 [DEBUG] raft: Votes needed: 1
+2021-11-12T19:02:26.430+0800 [DEBUG] raft: Vote granted from 0 in term 2. Tally: 1
+2021-11-12T19:02:26.430+0800 [INFO]  raft: Election won. Tally: 1
+2021-11-12T19:02:26.430+0800 [INFO]  raft: Node at 127.0.0.1:24337 [Leader] entering Leader state
+2021-11-12T19:02:27.358+0800 [INFO]  raft: Initial configuration (index=0): []
+2021-11-12T19:02:27.358+0800 [INFO]  raft: Node at 127.0.0.1:24338 [Follower] entering Follower state (Leader: "")
+2021-11-12T19:02:27.358+0800 [INFO]  raft: Updating configuration with AddStaging (1, 127.0.0.1:24338) to [{Suffrage:Voter ID:0 Address:127.0.0.1:24337} {Suffrage:Voter ID:1 Address:127.0.0.1:24338}]
+2021-11-12T19:02:27.359+0800 [INFO]  raft: Added peer 1, starting replication
+2021/11/12 19:02:27 [DEBUG] raft-net: 127.0.0.1:24338 accepted connection from: 127.0.0.1:58832
+2021-11-12T19:02:27.365+0800 [WARN]  raft: Failed to get previous log: 3 rpc error: code = Code(404) desc = offset out of range: 3 (last: 0)
+2021-11-12T19:02:27.365+0800 [WARN]  raft: AppendEntries to {Voter 1 127.0.0.1:24338} rejected, sending older logs (next: 1)
+2021-11-12T19:02:27.367+0800 [INFO]  raft: pipelining replication to peer {Voter 1 127.0.0.1:24338}
+2021/11/12 19:02:27 [DEBUG] raft-net: 127.0.0.1:24338 accepted connection from: 127.0.0.1:58834
+2021-11-12T19:02:27.371+0800 [INFO]  raft: Initial configuration (index=0): []
+2021-11-12T19:02:27.371+0800 [INFO]  raft: Node at 127.0.0.1:24339 [Follower] entering Follower state (Leader: "")
+2021-11-12T19:02:27.372+0800 [INFO]  raft: Updating configuration with AddStaging (2, 127.0.0.1:24339) to [{Suffrage:Voter ID:0 Address:127.0.0.1:24337} {Suffrage:Voter ID:1 Address:127.0.0.1:24338} {Suffrage:Voter ID:2 Address:127.0.0.1:24339}]
+2021-11-12T19:02:27.372+0800 [INFO]  raft: Added peer 2, starting replication
+2021/11/12 19:02:27 [DEBUG] raft-net: 127.0.0.1:24339 accepted connection from: 127.0.0.1:44036
+2021-11-12T19:02:27.374+0800 [WARN]  raft: Failed to get previous log: 4 rpc error: code = Code(404) desc = offset out of range: 4 (last: 0)
+2021-11-12T19:02:27.375+0800 [WARN]  raft: AppendEntries to {Voter 2 127.0.0.1:24339} rejected, sending older logs (next: 1)
+2021-11-12T19:02:27.375+0800 [INFO]  raft: pipelining replication to peer {Voter 2 127.0.0.1:24339}
+2021/11/12 19:02:27 [DEBUG] raft-net: 127.0.0.1:24339 accepted connection from: 127.0.0.1:44038
+2021-11-12T19:02:27.477+0800 [INFO]  raft: Updating configuration with RemoveServer (1, ) to [{Suffrage:Voter ID:0 Address:127.0.0.1:24337} {Suffrage:Voter ID:2 Address:127.0.0.1:24339}]
+2021-11-12T19:02:27.477+0800 [INFO]  raft: Removed peer 1, stopping replication after 7
+2021-11-12T19:02:27.478+0800 [INFO]  raft: aborting pipeline replication to peer {Voter 1 127.0.0.1:24338}
+2021/11/12 19:02:27 [ERR] raft-net: Failed to flush response: write tcp 127.0.0.1:24338->127.0.0.1:58832: write: broken pipe
+--- PASS: TestMultipleNodes (1.25s)
+PASS
+ok  	command-line-arguments	1.279s
+```
