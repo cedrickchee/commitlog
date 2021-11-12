@@ -76,3 +76,8 @@ testserver: "${CONFIG_DIR}/policy.csv" "${CONFIG_DIR}/model.conf"
 .PHONY: testsvcdisco
 testsvcdisco: "${CONFIG_DIR}/policy.csv" "${CONFIG_DIR}/model.conf"	
 	go test -v -race ./internal/discovery
+
+# Test the distributed log and Raft integrated in our service
+.PHONY: testraft
+testraft: "${CONFIG_DIR}/policy.csv" "${CONFIG_DIR}/model.conf"	
+	go test -v -race ./internal/log/distributed_test.go
