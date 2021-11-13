@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/status"
 
 	api "github.com/cedrickchee/commitlog/api/v1"
 	"github.com/cedrickchee/commitlog/internal/agent"
@@ -71,6 +72,7 @@ func TestAgent(t *testing.T) {
 
 		agent, err := agent.New(agent.Config{
 			NodeName:        fmt.Sprintf("%d", i),
+			Bootstrap:       i == 0, // bootstrap the Raft cluster
 			StartJoinAddrs:  startJoinAddrs,
 			BindAddr:        bindAddr,
 			RPCPort:         rpcPort,
@@ -94,7 +96,7 @@ func TestAgent(t *testing.T) {
 		}
 	}()
 	// Make the test sleep for a few seconds to give the nodes time to discover
-	// each other.
+	// each other. In other words, wait until agents have joined the cluster.
 	time.Sleep(3 * time.Second)
 
 	// Now that we have a cluster, we can test it works.
@@ -142,6 +144,23 @@ func TestAgent(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, consumeResponse.Record.Value, []byte("this is a test"))
+
+	// Verify that Raft has replicated the record we produced to the leader by
+	// consuming the record from a follower and that the replication stops
+	// there--the leader doesn't replicate from the followers. They must not
+	// replicate each other in a cycle and must adhere to a leader-follower
+	// relationship.
+	consumeResponse, err = leaderClient.Consume(
+		context.Background(),
+		&api.ConsumeRequest{
+			Offset: produceResponse.Offset + 1,
+		},
+	)
+	require.Nil(t, consumeResponse)
+	require.Error(t, err)
+	got := status.Code(err)
+	want := status.Code(api.ErrOffsetOutOfRange{}.GRPCStatus().Err())
+	require.Equal(t, got, want)
 }
 
 // client is a helper that sets up a client for the service.
