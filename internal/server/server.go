@@ -41,6 +41,14 @@ type Authorizer interface {
 	Authorize(subject, object, action string) error
 }
 
+// We don't want to add the `GetServers()` method to our `CommitLog` interface
+// because a non-distributed log like our `Log` type doesn't know about servers.
+// So we made a new interface whose sole method `GetServers()` matches
+// `DistributedLog.GetServers`.
+type GetServerer interface {
+	GetServers() ([]*api.Server, error)
+}
+
 type Config struct {
 	// Define the log field that's on our service such that we can pass in
 	// different log implementations and make the service easier to write tests
@@ -49,6 +57,8 @@ type Config struct {
 	// We depend on an interface for the `Authorizer` so that we can switch out
 	// the authorization implementation.
 	Authorizer Authorizer
+	// Enable us to inject different structs that can get servers.
+	GetServerer GetServerer
 }
 
 // Constants for authorization.
@@ -254,6 +264,19 @@ func (s *grpcServer) ConsumeStream(req *api.ConsumeRequest, stream api.Log_Consu
 			req.Offset++
 		}
 	}
+}
+
+// GetServers gets the cluster's servers.
+func (s *grpcServer) GetServers(
+	ctx context.Context,
+	req *api.GetServersRequest,
+) (*api.GetServersResponse, error) {
+	servers, err := s.GetServerer.GetServers()
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.GetServersResponse{Servers: servers}, nil
 }
 
 type subjectContextKey struct{}

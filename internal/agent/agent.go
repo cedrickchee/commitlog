@@ -182,6 +182,9 @@ func (a *Agent) setupServer() error {
 	serverConfig := &server.Config{
 		CommitLog:  a.log,
 		Authorizer: authorizer,
+		// Configure the server to get the cluster's servers from the
+		// `DistributedLog`.
+		GetServerer: a.log,
 	}
 
 	var opts []grpc.ServerOption
