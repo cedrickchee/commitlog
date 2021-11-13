@@ -9,6 +9,9 @@ service Log {
     rpc Consume(ConsumeRequest) returns (ConsumeResponse) {}
     rpc ConsumeStream(ConsumeRequest) returns (stream ConsumeResponse) {}
     rpc ProduceStream(stream ProduceRequest) returns (stream ProduceResponse) {}
+    
+    // This is the endpoint resolvers will call to get the cluster's servers.
+    rpc GetServers(GetServersRequest) returns (GetServersResponse) {}
 }
 
 message ProduceRequest {
@@ -32,4 +35,20 @@ message Record {
     uint64 offset = 2;
     uint64 term = 3;
     uint32 type = 4;
+}
+
+message GetServersRequest {}
+
+// The endpoint response includes the server addresses clients should connect to
+// and what server is the leader. This information will tell the picker what
+// server to send the server produce calls and what servers to send consume
+// calls.
+message GetServersResponse {
+    repeated Server servers = 1;
+}
+
+message Server {
+    string id = 1;
+    string rpc_addr = 2;
+    bool is_leader = 3;
 }
