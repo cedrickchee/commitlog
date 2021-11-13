@@ -101,13 +101,33 @@ func TestMultipleNodes(t *testing.T) {
 		}, 500*time.Millisecond, 50*time.Millisecond)
 	}
 
-	// Check that the leader stops replicating to a server that's left the
-	// cluster, while continuing to replicate to the existing servers.
+	// Check that `GetServers()` returns the servers in the cluster as we
+	// expect.
 
-	err := leader.Leave("1")
+	servers, err := leader.GetServers()
+	require.NoError(t, err)
+	// Assert `GetServers()` returns all three servers in the cluster and sets
+	// the leader server as the leader.
+	require.Equal(t, 3, len(servers))
+	require.True(t, servers[0].IsLeader)
+	require.False(t, servers[1].IsLeader)
+	require.False(t, servers[2].IsLeader)
+
+	err = leader.Leave("1")
 	require.NoError(t, err)
 
 	time.Sleep(50 * time.Millisecond)
+
+	servers, err = leader.GetServers()
+	require.NoError(t, err)
+	// Expect the cluster to have two servers because these assertions run after
+	// we've made one server leave the cluster.
+	require.Equal(t, 2, len(servers))
+	require.True(t, servers[0].IsLeader)
+	require.False(t, servers[1].IsLeader)
+
+	// Check that the leader stops replicating to a server that's left the
+	// cluster, while continuing to replicate to the existing servers.
 
 	want := []byte("third")
 	offset, err := leader.Append(&api.Record{Value: want})
