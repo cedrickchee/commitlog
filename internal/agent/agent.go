@@ -1,16 +1,20 @@
 package agent
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"sync"
+	"time"
 
+	"github.com/hashicorp/raft"
+	"github.com/soheilhy/cmux"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	api "github.com/cedrickchee/commitlog/api/v1"
 	"github.com/cedrickchee/commitlog/internal/auth"
 	"github.com/cedrickchee/commitlog/internal/discovery"
 	"github.com/cedrickchee/commitlog/internal/log"
@@ -26,10 +30,10 @@ type Agent struct {
 	// The agent config.
 	Config
 
-	log        *log.Log
+	mux        cmux.CMux
+	log        *log.DistributedLog
 	server     *grpc.Server
 	membership *discovery.Membership
-	replicator *log.Replicator
 
 	shutdown     bool
 	shutdowns    chan struct{}
@@ -41,17 +45,23 @@ type Agent struct {
 type Config struct {
 	ServerTLSConfig *tls.Config
 	PeerTLSConfig   *tls.Config
-	DataDir         string
-	// Serf (discovery) listens on this address and port for gossiping.
+	// DataDir stores the log and raft data.
+	DataDir string
+	// The address Serf (discovery & membership) runs on.
+	// Serf listens on this address and port for gossiping.
 	// gRPC only listen on this address and get its port dynamically from the
 	// `RPCPort` field.
 	BindAddr string
-	// gRPC port
-	RPCPort        int
+	// The port for gRPC client (and Raft) connections.
+	RPCPort int
+	// Raft server id.
 	NodeName       string
 	StartJoinAddrs []string
 	ACLModelFile   string
 	ACLPolicyFile  string
+	// Bootstrap should be set to true when starting the first node of the
+	// cluster.
+	Bootstrap bool
 }
 
 // RPCAddr returns the address and port for gRPC server.
@@ -75,6 +85,7 @@ func New(config Config) (*Agent, error) {
 
 	setup := []func() error{
 		a.setupLogger,
+		a.setupMux,
 		a.setupLog,
 		a.setupServer,
 		a.setupMembership,
@@ -84,6 +95,8 @@ func New(config Config) (*Agent, error) {
 			return nil, err
 		}
 	}
+
+	go a.serve()
 
 	return a, nil
 }
@@ -99,10 +112,56 @@ func (a *Agent) setupLogger() error {
 	return nil
 }
 
+// setupMux creates a listener on our RPC address that'll accept both Raft and
+// gRPC connections and then creates the mux (short for multiplexer) with the
+// listener. The mux will accept connections on that listener and match
+// connections based on your configured rules.
+func (a *Agent) setupMux() error {
+	rpcAddr := fmt.Sprintf(":%d", a.Config.RPCPort)
+	ln, err := net.Listen("tcp", rpcAddr)
+	if err != nil {
+		return err
+	}
+	a.mux = cmux.New(ln)
+
+	return nil
+}
+
 // setupLog sets up the log.
 func (a *Agent) setupLog() error {
+	// Configure the mux rule that matches Raft connections.
+	raftLn := a.mux.Match(func(reader io.Reader) bool {
+		// Identify Raft connections by reading one byte and checking that the
+		// byte matches the byte we set up our outgoing Raft connections to
+		// write in Stream Layer.
+		b := make([]byte, 1)
+		if _, err := reader.Read(b); err != nil {
+			return false
+		}
+		// If the mux matches this rule, it will pass the connection to the
+		// `raftLn` listener for Raft to handle the connection.
+		return bytes.Equal(b, []byte{byte(log.RaftRPC)})
+	})
+
+	// Configure the distributed log's Raft to use our multiplexed listener and
+	// then configure and create the distributed log.
+	logConfig := log.Config{}
+	logConfig.Raft.StreamLayer = log.NewStreamLayer(
+		raftLn,
+		a.Config.ServerTLSConfig,
+		a.Config.PeerTLSConfig,
+	)
+	logConfig.Raft.LocalID = raft.ServerID(a.Config.NodeName)
+	logConfig.Raft.Bootstrap = a.Config.Bootstrap
+
 	var err error
-	a.log, err = log.NewLog(a.Config.DataDir, log.Config{})
+	a.log, err = log.NewDistributedLog(a.Config.DataDir, logConfig)
+	if err != nil {
+		return err
+	}
+	if a.Config.Bootstrap {
+		err = a.log.WaitForLeader(3 * time.Second)
+	}
 
 	return err
 }
@@ -130,17 +189,14 @@ func (a *Agent) setupServer() error {
 		return err
 	}
 
-	rpcAddr, err := a.RPCAddr()
-	if err != nil {
-		return err
-	}
-	ln, err := net.Listen("tcp", rpcAddr)
-	if err != nil {
-		return err
-	}
+	// Because we've multiplexed two connection types (Raft and gRPC) and we
+	// added a matcher for the Raft connections, we know all other connections
+	// must be gRPC connections.
+	grpcLn := a.mux.Match(cmux.Any())
 
 	go func() {
-		if err := a.server.Serve(ln); err != nil {
+		// Tell the gRPC server to serve on the multiplexed listener.
+		if err := a.server.Serve(grpcLn); err != nil {
 			_ = a.Shutdown()
 		}
 	}()
@@ -150,37 +206,15 @@ func (a *Agent) setupServer() error {
 
 // setupMembership sets up the membership.
 func (a *Agent) setupMembership() error {
-	// Set up a `Replicator` with the gRPC dial options needed to connect to
-	// other servers and a client so the `replicator` can connect to other
-	// servers, consume their data, and produce a copy of the data to the
-	// local server.
-
 	rpcAddr, err := a.Config.RPCAddr()
 	if err != nil {
 		return err
 	}
 
-	var opts []grpc.DialOption
-	if a.Config.PeerTLSConfig != nil {
-		opts = append(opts, grpc.WithTransportCredentials(
-			credentials.NewTLS(a.Config.PeerTLSConfig),
-		),
-		)
-	}
-	conn, err := grpc.Dial(rpcAddr, opts...)
-	if err != nil {
-		return err
-	}
+	// Our `DistributedLog` handles coordinated replication, thanks to Raft, so
+	// we don’t need the `Replicator` anymore. Now we need the `Membership` to
+	// tell the `DistributedLog` when servers join or leave the cluster.
 
-	client := api.NewLogClient(conn)
-
-	// Then we create a `Membership` passing in the `replicator` and its handler
-	// to notify the replicator when servers join and leave the cluster.
-
-	a.replicator = &log.Replicator{
-		DialOptions: opts,
-		LocalServer: client,
-	}
 	tags := map[string]string{
 		"rpc_addr": rpcAddr,
 	}
@@ -190,9 +224,22 @@ func (a *Agent) setupMembership() error {
 		Tags:           tags,
 		StartJoinAddrs: a.Config.StartJoinAddrs,
 	}
-	a.membership, err = discovery.New(a.replicator, c)
+	// Our distributed log will act as our `Membership`'s handler.
+	// Create a `Membership` passing in the distributed log and its handler to
+	// notify Raft when servers join and leave the cluster.
+	a.membership, err = discovery.New(a.log, c)
 
 	return err
+}
+
+// serve tells our mux to serve connections.
+func (a *Agent) serve() error {
+	if err := a.mux.Serve(); err != nil {
+		_ = a.Shutdown()
+		return err
+	}
+
+	return nil
 }
 
 // Shutdown shuts down the agent. This ensures that the agent will shut down
@@ -218,7 +265,6 @@ func (a *Agent) Shutdown() error {
 
 	shutdown := []func() error{
 		a.membership.Leave,
-		a.replicator.Close,
 		func() error {
 			a.server.GracefulStop()
 			return nil
