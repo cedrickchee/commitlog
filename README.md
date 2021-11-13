@@ -184,3 +184,141 @@ go test -v -race ./internal/log/distributed_test.go
 PASS
 ok  	command-line-arguments	1.279s
 ```
+
+
+Test distributed service end-to-end (uses Raft for consensus and log replication
+and uses Serf for service discovery and cluster membership):
+
+```sh
+$ make testagent 
+cp test/policy.csv "/home/neo/dev/work/repo/github/commitlog/.config/policy.csv"
+cp test/model.conf "/home/neo/dev/work/repo/github/commitlog/.config/model.conf"
+go test -v -race ./internal/agent/agent_test.go
+=== RUN   TestAgent
+2021-11-13T16:09:38.974+0800 [INFO]  raft: Initial configuration (index=0): []
+2021-11-13T16:09:38.975+0800 [INFO]  raft: Node at [::]:23314 [Follower] entering Follower state (Leader: "")
+2021-11-13T16:09:40.028+0800 [WARN]  raft: Heartbeat timeout from "" reached, starting election
+2021-11-13T16:09:40.028+0800 [INFO]  raft: Node at [::]:23314 [Candidate] entering Candidate state in term 2
+2021-11-13T16:09:40.033+0800 [DEBUG] raft: Votes needed: 1
+2021-11-13T16:09:40.033+0800 [DEBUG] raft: Vote granted from 0 in term 2. Tally: 1
+2021-11-13T16:09:40.033+0800 [INFO]  raft: Election won. Tally: 1
+2021-11-13T16:09:40.033+0800 [INFO]  raft: Node at [::]:23314 [Leader] entering Leader state
+2021/11/13 16:09:40 [INFO] serf: EventMemberJoin: 0 127.0.0.1
+2021-11-13T16:09:41.004+0800 [INFO]  raft: Initial configuration (index=0): []
+2021-11-13T16:09:41.004+0800 [INFO]  raft: Node at [::]:23316 [Follower] entering Follower state (Leader: "")
+2021/11/13 16:09:41 [INFO] serf: EventMemberJoin: 1 127.0.0.1
+2021/11/13 16:09:41 [DEBUG] memberlist: Initiating push/pull sync with:  127.0.0.1:23313
+2021/11/13 16:09:41 [DEBUG] memberlist: Stream connection from=127.0.0.1:51938
+2021/11/13 16:09:41 [INFO] serf: EventMemberJoin: 1 127.0.0.1
+2021-11-13T16:09:41.013+0800 [INFO]  raft: Updating configuration with AddStaging (1, 127.0.0.1:23316) to [{Suffrage:Voter ID:0 Address:[::]:23314} {Suffrage:Voter ID:1 Address:127.0.0.1:23316}]
+2021/11/13 16:09:41 [INFO] serf: EventMemberJoin: 0 127.0.0.1
+2021-11-13T16:09:41.013+0800 [INFO]  raft: Added peer 1, starting replication
+2021-11-13T16:09:41.013+0800	DEBUG	membership	discovery/membership.go:165	failed to join	{"error": "node is not the leader", "name": "0", "rpc_addr": "127.0.0.1:23314"}
+2021/11/13 16:09:41 [DEBUG] raft-net: [::]:23316 accepted connection from: 127.0.0.1:46600
+2021-11-13T16:09:41.025+0800 [INFO]  raft: Initial configuration (index=0): []
+2021-11-13T16:09:41.025+0800 [INFO]  raft: Node at [::]:23318 [Follower] entering Follower state (Leader: "")
+2021/11/13 16:09:41 [INFO] serf: EventMemberJoin: 2 127.0.0.1
+2021/11/13 16:09:41 [DEBUG] memberlist: Initiating push/pull sync with:  127.0.0.1:23313
+2021/11/13 16:09:41 [DEBUG] memberlist: Stream connection from=127.0.0.1:51942
+2021-11-13T16:09:41.030+0800 [WARN]  raft: Failed to get previous log: 3 rpc error: code = Code(404) desc = offset out of range: 3 (last: 0)
+2021-11-13T16:09:41.030+0800 [WARN]  raft: AppendEntries to {Voter 1 127.0.0.1:23316} rejected, sending older logs (next: 1)
+2021/11/13 16:09:41 [INFO] serf: EventMemberJoin: 2 127.0.0.1
+2021-11-13T16:09:41.031+0800 [INFO]  raft: Updating configuration with AddStaging (2, 127.0.0.1:23318) to [{Suffrage:Voter ID:0 Address:[::]:23314} {Suffrage:Voter ID:1 Address:127.0.0.1:23316} {Suffrage:Voter ID:2 Address:127.0.0.1:23318}]
+2021-11-13T16:09:41.031+0800 [INFO]  raft: Added peer 2, starting replication
+2021/11/13 16:09:41 [INFO] serf: EventMemberJoin: 1 127.0.0.1
+2021-11-13T16:09:41.031+0800 [INFO]  raft: pipelining replication to peer {Voter 1 127.0.0.1:23316}
+2021/11/13 16:09:41 [INFO] serf: EventMemberJoin: 0 127.0.0.1
+2021-11-13T16:09:41.031+0800	DEBUG	membership	discovery/membership.go:165	failed to join	{"error": "node is not the leader", "name": "1", "rpc_addr": "127.0.0.1:23316"}
+2021-11-13T16:09:41.032+0800	DEBUG	membership	discovery/membership.go:165	failed to join	{"error": "node is not the leader", "name": "0", "rpc_addr": "127.0.0.1:23314"}
+2021/11/13 16:09:41 [DEBUG] raft-net: [::]:23318 accepted connection from: 127.0.0.1:39724
+2021-11-13T16:09:41.045+0800 [WARN]  raft: Failed to get previous log: 4 rpc error: code = Code(404) desc = offset out of range: 4 (last: 0)
+2021-11-13T16:09:41.046+0800 [WARN]  raft: AppendEntries to {Voter 2 127.0.0.1:23318} rejected, sending older logs (next: 1)
+2021-11-13T16:09:41.046+0800 [INFO]  raft: pipelining replication to peer {Voter 2 127.0.0.1:23318}
+2021/11/13 16:09:41 [DEBUG] raft-net: [::]:23316 accepted connection from: 127.0.0.1:46606
+2021/11/13 16:09:41 [DEBUG] raft-net: [::]:23318 accepted connection from: 127.0.0.1:39728
+2021/11/13 16:09:41 [INFO] serf: EventMemberJoin: 2 127.0.0.1
+2021/11/13 16:09:41 [DEBUG] serf: messageJoinType: 1
+2021/11/13 16:09:41 [DEBUG] serf: messageJoinType: 1
+2021/11/13 16:09:41 [DEBUG] serf: messageJoinType: 2
+2021/11/13 16:09:41 [DEBUG] serf: messageJoinType: 1
+2021/11/13 16:09:41 [DEBUG] serf: messageJoinType: 2
+
+...
+
+2021-11-13T16:09:44.053+0800	INFO	server	zap/options.go:212	finished unary call with code OK	{"grpc.start_time": "2021-11-13T16:09:44+08:00", "system": "grpc", "span.kind": "server", "grpc.service": "log.v1.Log", "grpc.method": "Produce", "peer.address": "127.0.0.1:42768", "grpc.code": "OK", "grpc.time_ns": 686930}
+2021-11-13T16:09:44.055+0800	INFO	server	zap/options.go:212	finished unary call with code OK	{"grpc.start_time": "2021-11-13T16:09:44+08:00", "system": "grpc", "span.kind": "server", "grpc.service": "log.v1.Log", "grpc.method": "Consume", "peer.address": "127.0.0.1:42768", "grpc.code": "OK", "grpc.time_ns": 375171}
+2021-11-13T16:09:47.083+0800	INFO	server	zap/options.go:212	finished unary call with code OK	{"grpc.start_time": "2021-11-13T16:09:47+08:00", "system": "grpc", "span.kind": "server", "grpc.service": "log.v1.Log", "grpc.method": "Consume", "peer.address": "127.0.0.1:46612", "grpc.code": "OK", "grpc.time_ns": 388583}
+2021-11-13T16:09:47.085+0800	ERROR	server	zap/options.go:212	finished unary call with code Code(404)	{"grpc.start_time": "2021-11-13T16:09:47+08:00", "system": "grpc", "span.kind": "server", "grpc.service": "log.v1.Log", "grpc.method": "Consume", "peer.address": "127.0.0.1:42768", "error": "rpc error: code = Code(404) desc = offset out of range: 1", "grpc.code": "Code(404)", "grpc.time_ns": 337750}
+github.com/grpc-ecosystem/go-grpc-middleware/logging/zap.DefaultMessageProducer
+	/home/neo/go/pkg/mod/github.com/grpc-ecosystem/go-grpc-middleware@v1.3.0/logging/zap/options.go:212
+github.com/grpc-ecosystem/go-grpc-middleware/logging/zap.UnaryServerInterceptor.func1
+	/home/neo/go/pkg/mod/github.com/grpc-ecosystem/go-grpc-middleware@v1.3.0/logging/zap/server_interceptors.go:39
+github.com/grpc-ecosystem/go-grpc-middleware.ChainUnaryServer.func1.1.1
+	/home/neo/go/pkg/mod/github.com/grpc-ecosystem/go-grpc-middleware@v1.3.0/chain.go:25
+github.com/grpc-ecosystem/go-grpc-middleware/tags.UnaryServerInterceptor.func1
+	/home/neo/go/pkg/mod/github.com/grpc-ecosystem/go-grpc-middleware@v1.3.0/tags/interceptors.go:23
+github.com/grpc-ecosystem/go-grpc-middleware.ChainUnaryServer.func1.1.1
+	/home/neo/go/pkg/mod/github.com/grpc-ecosystem/go-grpc-middleware@v1.3.0/chain.go:25
+github.com/grpc-ecosystem/go-grpc-middleware.ChainUnaryServer.func1
+	/home/neo/go/pkg/mod/github.com/grpc-ecosystem/go-grpc-middleware@v1.3.0/chain.go:34
+github.com/cedrickchee/commitlog/api/v1._Log_Consume_Handler
+	/home/neo/dev/work/repo/github/commitlog/api/v1/log_grpc.pb.go:189
+google.golang.org/grpc.(*Server).processUnaryRPC
+	/home/neo/go/pkg/mod/google.golang.org/grpc@v1.41.0/server.go:1279
+google.golang.org/grpc.(*Server).handleStream
+	/home/neo/go/pkg/mod/google.golang.org/grpc@v1.41.0/server.go:1608
+google.golang.org/grpc.(*Server).serveStreams.func1.2
+	/home/neo/go/pkg/mod/google.golang.org/grpc@v1.41.0/server.go:923
+2021/11/13 16:09:47 [DEBUG] serf: messageLeaveType: 0
+2021/11/13 16:09:47 [DEBUG] serf: messageLeaveType: 0
+...
+2021/11/13 16:09:47 [INFO] serf: EventMemberLeave: 0 127.0.0.1
+2021/11/13 16:09:47 [DEBUG] serf: messageLeaveType: 0
+2021/11/13 16:09:47 [DEBUG] serf: messageLeaveType: 0
+...
+2021/11/13 16:09:47 [INFO] serf: EventMemberLeave: 0 127.0.0.1
+2021-11-13T16:09:47.588+0800	DEBUG	membership	discovery/membership.go:165	failed to leave	{"error": "node is not the leader", "name": "0", "rpc_addr": "127.0.0.1:23314"}
+2021/11/13 16:09:47 [INFO] serf: EventMemberLeave: 0 127.0.0.1
+2021-11-13T16:09:47.588+0800	DEBUG	membership	discovery/membership.go:165	failed to leave	{"error": "node is not the leader", "name": "0", "rpc_addr": "127.0.0.1:23314"}
+2021/11/13 16:09:48 [ERR] raft-net: Failed to accept connection: mux: server closed
+2021-11-13T16:09:48.790+0800 [INFO]  raft: aborting pipeline replication to peer {Voter 1 127.0.0.1:23316}
+2021-11-13T16:09:48.790+0800 [INFO]  raft: aborting pipeline replication to peer {Voter 2 127.0.0.1:23318}
+2021/11/13 16:09:48 [DEBUG] serf: messageLeaveType: 1
+2021/11/13 16:09:48 [DEBUG] serf: messageLeaveType: 1
+...
+2021/11/13 16:09:49 [INFO] serf: EventMemberLeave: 1 127.0.0.1
+2021/11/13 16:09:49 [DEBUG] serf: messageLeaveType: 1
+...
+2021/11/13 16:09:49 [INFO] serf: EventMemberLeave: 1 127.0.0.1
+2021-11-13T16:09:49.412+0800	DEBUG	membership	discovery/membership.go:165	failed to leave	{"error": "node is not the leader", "name": "1", "rpc_addr": "127.0.0.1:23316"}
+2021/11/13 16:09:50 [DEBUG] serf: messageLeaveType: 1
+2021-11-13T16:09:50.415+0800 [WARN]  raft: Heartbeat timeout from "[::]:23314" reached, starting election
+2021-11-13T16:09:50.415+0800 [INFO]  raft: Node at [::]:23318 [Candidate] entering Candidate state in term 3
+2021/11/13 16:09:50 [DEBUG] raft-net: [::]:23316 accepted connection from: 127.0.0.1:46614
+2021-11-13T16:09:50.421+0800 [ERROR] raft: Failed to make RequestVote RPC to {Voter 0 [::]:23314}: dial tcp [::]:23314: connect: connection refused
+2021-11-13T16:09:50.423+0800 [DEBUG] raft: Votes needed: 2
+2021-11-13T16:09:50.423+0800 [DEBUG] raft: Vote granted from 2 in term 3. Tally: 1
+2021-11-13T16:09:50.442+0800 [WARN]  raft: Rejecting vote request from [::]:23318 since we have a leader: [::]:23314
+2021-11-13T16:09:50.917+0800 [WARN]  raft: Heartbeat timeout from "[::]:23314" reached, starting election
+2021-11-13T16:09:50.917+0800 [INFO]  raft: Node at [::]:23316 [Candidate] entering Candidate state in term 3
+2021-11-13T16:09:50.921+0800 [ERROR] raft: Failed to make RequestVote RPC to {Voter 0 [::]:23314}: dial tcp [::]:23314: connect: connection refused
+2021-11-13T16:09:50.924+0800 [DEBUG] raft: Votes needed: 2
+2021-11-13T16:09:50.924+0800 [DEBUG] raft: Vote granted from 1 in term 3. Tally: 1
+2021/11/13 16:09:50 [DEBUG] raft-net: [::]:23318 accepted connection from: 127.0.0.1:39744
+2021-11-13T16:09:50.943+0800 [INFO]  raft: Duplicate RequestVote for same term: 3
+2021/11/13 16:09:51 [ERR] raft-net: Failed to accept connection: mux: server closed
+2021/11/13 16:09:51 [INFO] serf: EventMemberLeave: 2 127.0.0.1
+2021-11-13T16:09:51.927+0800 [WARN]  raft: Election timeout reached, restarting election
+2021-11-13T16:09:51.928+0800 [INFO]  raft: Node at [::]:23318 [Candidate] entering Candidate state in term 4
+2021/11/13 16:09:51 [ERR] raft-net: Failed to decode incoming command: transport shutdown
+2021-11-13T16:09:51.932+0800 [ERROR] raft: Failed to make RequestVote RPC to {Voter 1 127.0.0.1:23316}: EOF
+2021-11-13T16:09:51.933+0800 [ERROR] raft: Failed to make RequestVote RPC to {Voter 0 [::]:23314}: dial tcp [::]:23314: connect: connection refused
+2021-11-13T16:09:51.935+0800 [DEBUG] raft: Votes needed: 2
+2021-11-13T16:09:51.936+0800 [DEBUG] raft: Vote granted from 2 in term 4. Tally: 1
+2021/11/13 16:09:51 [INFO] serf: EventMemberLeave: 1 127.0.0.1
+2021/11/13 16:09:51 [INFO] serf: EventMemberFailed: 2 127.0.0.1
+2021/11/13 16:09:52 [ERR] raft-net: Failed to accept connection: mux: server closed
+--- PASS: TestAgent (13.06s)
+PASS
+ok  	command-line-arguments	13.088s
+```
