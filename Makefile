@@ -81,3 +81,8 @@ testsvcdisco: "${CONFIG_DIR}/policy.csv" "${CONFIG_DIR}/model.conf"
 .PHONY: testraft
 testraft: "${CONFIG_DIR}/policy.csv" "${CONFIG_DIR}/model.conf"	
 	go test -v -race ./internal/log/distributed_test.go
+
+# Test distributed service end-to-end (uses Raft for consensus and log replication)
+.PHONY: testagent
+testagent: "${CONFIG_DIR}/policy.csv" "${CONFIG_DIR}/model.conf"	
+	go test -v -race ./internal/agent/agent_test.go
