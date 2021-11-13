@@ -83,6 +83,12 @@ func New(config Config) (*Agent, error) {
 		shutdowns: make(chan struct{}),
 	}
 
+	logger, err := zap.NewProduction()
+	if err != nil {
+		return nil, err
+	}
+	zap.ReplaceGlobals(logger)
+
 	setup := []func() error{
 		a.setupLogger,
 		a.setupMux,
