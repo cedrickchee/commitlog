@@ -53,6 +53,13 @@ compile:
 			--go-grpc_out=. \
 			--go-grpc_opt=paths=source_relative
 
+# Build Docker image
+TAG ?= 0.0.1
+
+.PHONY: build-docker
+build-docker:
+	docker build -t github.com/cedrickchee/commitlog:$(TAG) .
+
 ################################################################################
 # Test
 ################################################################################
