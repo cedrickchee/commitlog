@@ -17,6 +17,7 @@ import (
 	api "github.com/cedrickchee/commitlog/api/v1"
 	"github.com/cedrickchee/commitlog/internal/agent"
 	"github.com/cedrickchee/commitlog/internal/config"
+	"github.com/cedrickchee/commitlog/internal/loadbalance"
 	"github.com/cedrickchee/commitlog/pkg/freeport"
 )
 
@@ -112,6 +113,20 @@ func TestAgent(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
+
+	// Wait until replication has finished.
+	//
+	// Note: the timer has to be placed here at this point of time. Otherwise,
+	// you'll see that the leader client consume call fails. Why? Before, each
+	// client connected to one server. So the leader client connected to the
+	// leader. When we produced records, they were immediately available for
+	// consuming with the leader client because it consumed from the leader
+	// server--we didn't have to wait for the leader to replicate the record.
+	// Now, each client connects to every server and produces to the leader and
+	// consumes from the followers, so we must wait for the leader to replicate
+	// the record to the followers.
+	time.Sleep(3 * time.Second)
+
 	consumeResponse, err := leaderClient.Consume(
 		context.Background(),
 		&api.ConsumeRequest{
@@ -131,9 +146,6 @@ func TestAgent(t *testing.T) {
 	// add a big enough delay in the test for the replicator to have replicated
 	// the message, but as small a delay as possible to keep our tests fast.
 	// Then we check that we can consume the replicated message.
-
-	// Wait until replication has finished.
-	time.Sleep(3 * time.Second)
 
 	followerClient := client(t, agents[1], peerTLSConfig)
 	consumeResponse, err = followerClient.Consume(
@@ -175,7 +187,10 @@ func client(
 	rpcAddr, err := agent.Config.RPCAddr()
 	require.NoError(t, err)
 
-	conn, err := grpc.Dial(rpcAddr, opts...)
+	conn, err := grpc.Dial(
+		// Specify our scheme in the URL so gRPC knows to use our resolver.
+		fmt.Sprintf("%s:///%s", loadbalance.Name, rpcAddr),
+		opts...)
 	require.NoError(t, err)
 
 	client := api.NewLogClient(conn)
