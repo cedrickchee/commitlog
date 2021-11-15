@@ -87,7 +87,12 @@ testraft: "${CONFIG_DIR}/policy.csv" "${CONFIG_DIR}/model.conf"
 testagent: "${CONFIG_DIR}/policy.csv" "${CONFIG_DIR}/model.conf"	
 	go test -v -race ./internal/agent/agent_test.go
 
-# Run the resolver tests
+# Run the load balance's resolver tests
 .PHONY: testresolver
-testresolver: "${CONFIG_DIR}/policy.csv" "${CONFIG_DIR}/model.conf"
+testresolver:
 	go test -v -race ./internal/loadbalance/resolver_test.go
+
+# Run the load balance's picker tests
+.PHONY: testpicker
+testpicker:
+	go test -v -race ./internal/loadbalance/picker_test.go
