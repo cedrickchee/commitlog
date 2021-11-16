@@ -6,6 +6,8 @@ import "github.com/hashicorp/raft"
 type Config struct {
 	Raft struct {
 		raft.Config
+		// Advertise Raft on FQDN -- set the address Raft bind to.
+		BindAddr    string
 		StreamLayer *StreamLayer
 		Bootstrap   bool
 	}

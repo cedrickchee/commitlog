@@ -42,6 +42,8 @@ func TestMultipleNodes(t *testing.T) {
 		config.Raft.ElectionTimeout = 50 * time.Millisecond
 		config.Raft.LeaderLeaseTimeout = 50 * time.Millisecond
 		config.Raft.CommitTimeout = 5 * time.Millisecond
+		// Advertise Raft on FQDN -- set the address Raft bind to.
+		config.Raft.BindAddr = ln.Addr().String()
 
 		// The first server bootstraps the cluster, becomes the leader, and adds
 		// the other two servers to the cluster. The leader then must join other

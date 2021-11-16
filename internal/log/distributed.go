@@ -172,8 +172,13 @@ func (l *DistributedLog) setupRaft(dataDir string) error {
 	if l.config.Raft.Bootstrap && !hasState {
 		config := raft.Configuration{
 			Servers: []raft.Server{{
-				ID:      config.LocalID,
-				Address: transport.LocalAddr(),
+				ID: config.LocalID,
+				// We want to use the Fully Qualified Domain Name (FQDN) instead
+				// so the Raft node will properly advertise itself to its
+				// cluster and to its clients. To achieve that, we use the
+				// configured bind address instead of the transport's local
+				// address.
+				Address: raft.ServerAddress(l.config.Raft.BindAddr),
 			}},
 		}
 		err = l.raft.BootstrapCluster(config).Error()
