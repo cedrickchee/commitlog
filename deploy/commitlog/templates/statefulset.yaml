@@ -25,6 +25,8 @@ spec:
             ID=$(echo $HOSTNAME | rev | cut -d- -f1 | rev)
             cat > /var/run/commitlog/config.yaml <<EOD
             data-dir: /var/run/commitlog/data
+            acl-mode-file: /etc/commitlog/model.conf
+            acl-policy-file: /etc/commitlog/policy.csv
             rpc-port: {{.Values.rpcPort}}
             bind-addr: "$HOSTNAME.commitlog.{{.Release.Namespace}}.svc.cluster.local:{{.Values.serfPort}}"
             bootstrap: $([ $ID = 0 ] && echo true || echo false)
