@@ -49,11 +49,11 @@ spec:
         readinessProbe:
           exec:
             command: ["/bin/grpc_health_probe", "-addr=:{{ .Values.rpcPort }}"]
-          initialDelaySeconds: 10
+          initialDelaySeconds: 60
         livenessProbe:
           exec:
             command: ["/bin/grpc_health_probe", "-addr=:{{ .Values.rpcPort }}"]
-          initialDelaySeconds: 10
+          initialDelaySeconds: 60
         volumeMounts:
         - name: datadir
           mountPath: /var/run/commitlog
