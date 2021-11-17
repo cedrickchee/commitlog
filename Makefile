@@ -103,3 +103,60 @@ testresolver:
 .PHONY: testpicker
 testpicker:
 	go test -v -race ./internal/loadbalance/picker_test.go
+
+################################################################################
+# Deploy
+################################################################################
+.PHONY: deploy-local-kind
+deploy-local-kind:
+	# Create a Kind cluster
+	kind create cluster
+
+	# Build Docker image
+	make build-docker
+	
+	# Load Docker image into our Kind cluster
+	kind load docker-image github.com/cedrickchee/commitlog:0.0.1
+
+	make local-install-chart
+	make local-list-pods
+
+.PHONY: local-install-chart
+local-install-chart:
+	# Copy the ACL files into Helm charts
+	cp test/model.conf deploy/commitlog/.config/model.conf
+	cp test/policy.csv deploy/commitlog/.config/policy.csv
+
+	# Install our Helm chart in our Kind cluster
+	helm install commitlog deploy/commitlog
+
+# List Kubernetes pods
+.PHONY: local-list-pods
+local-list-pods:
+	kubectl get pods
+
+.PHONY: forward-port-local
+forward-port-local:
+	kubectl port-forward pod/commitlog-0 8500:8400
+
+# View local cluster pod's logs
+.PHONY: local-pod-logs
+local-pod-logs:
+	kubectl logs -f commitlog-0
+
+.PHONY: local-pod-exec
+local-pod-exec:
+	kubectl exec --stdin --tty commitlog-0 -c commitlog -- sh
+
+.PHONY: uninstall-chart
+uninstall-chart:
+	helm uninstall commitlog
+
+.PHONY: delete-local-cluster
+delete-local-cluster:
+	kind delete cluster
+
+.PHONY: cleanup-local-cluster
+delete-cluster:
+	make uninstall-chart
+	make delete-local-cluster
