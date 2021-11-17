@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "commitlog.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{ include "commitlog.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels: {{ include "commitlog.selectorLabels" . | nindent 6 }}
+  serviceName: {{ include "commitlog.fullname" . }}
+  replicas: {{ .Values.replicas }}
+  template:
+    metadata:
+      name: {{ include "commitlog.fullname" . }}
+      labels: {{ include "commitlog.labels" . | nindent 8 }}
+    spec:
+      initContainers:
+      - name: {{ include "commitlog.fullname" . }}-config-init
+        image: busybox
+        imagePullPolicy: IfNotPresent
+        command:          
+          - /bin/sh
+          - -c
+          - |-
+            ID=$(echo $HOSTNAME | rev | cut -d- -f1 | rev)
+            cat > /var/run/commitlog/config.yaml <<EOD
+            data-dir: /var/run/commitlog/data
+            rpc-port: {{.Values.rpcPort}}
+            bind-addr: "$HOSTNAME.commitlog.{{.Release.Namespace}}.svc.cluster.local:{{.Values.serfPort}}"
+            bootstrap: $([ $ID = 0 ] && echo true || echo false)
+            $([ $ID != 0 ] && echo 'start-join-addrs: "commitlog-0.commitlog.{{.Release.Namespace}}.svc.cluster.local:{{.Values.serfPort}}"')
+            EOD
+        volumeMounts:
+        - name: datadir
+          mountPath: /var/run/commitlog
+      containers:
+      - name: {{ include "commitlog.fullname" . }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        ports:
+        - containerPort: {{ .Values.rpcPort }}
+          name: rpc
+        - containerPort: {{ .Values.serfPort }}
+          name: serf
+        args:
+          - --config-file=/var/run/commitlog/config.yaml
+        # probes - tell Kubernetes how to probe our service
+        readinessProbe:
+          exec:
+            command: ["/bin/grpc_health_probe", "-addr=:{{ .Values.rpcPort }}"]
+          initialDelaySeconds: 10
+        livenessProbe:
+          exec:
+            command: ["/bin/grpc_health_probe", "-addr=:{{ .Values.rpcPort }}"]
+          initialDelaySeconds: 10
+        volumeMounts:
+        - name: datadir
+          mountPath: /var/run/commitlog
+  volumeClaimTemplates:
+  - metadata:
+      name: datadir
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: {{ .Values.storage }}
