@@ -13,14 +13,17 @@ wget -O/go/bin/grpc_health_probe \
 https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/\
 ${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
 chmod +x /go/bin/grpc_health_probe
+RUN cp -a /go/bin/grpc_health_probe /bin/grpc_health_probe && \
+cp -a /go/bin/commitlog /bin/commitlog
+COPY docker-entrypoint.sh /usr/local/bin/
 
 # Stage 2: runs it
 
 # scratch is empty image--the smallest Docker image.
-FROM scratch
+# FROM scratch
 # copy our binary into this image.
-COPY --from=build /go/bin/commitlog /bin/commitlog
+# COPY --from=build /go/bin/commitlog /bin/commitlog
 # install the grpc_health_probe executable in out image.
-COPY --from=build /go/bin/grpc_health_probe /bin/grpc_health_probe
+# COPY --from=build /go/bin/grpc_health_probe /bin/grpc_health_probe
 
-ENTRYPOINT ["/bin/commitlog"]
+ENTRYPOINT ["docker-entrypoint.sh"]
