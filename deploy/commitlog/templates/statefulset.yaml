@@ -57,6 +57,16 @@ spec:
         volumeMounts:
         - name: datadir
           mountPath: /var/run/commitlog
+        {{ range $path, $bytes := .Files.Glob ( printf ".config/**") }}
+        {{ $name := base $path }}
+        - name: cm-multi-file-volume
+          mountPath: {{ printf "/etc/commitlog%s/%s" (index (regexSplit ".config" (dir $path) -1) 1) $name | indent 2 }}
+          subPath: {{- sha256sum (printf "%s/%s" (index (regexSplit ".config" (dir $path) -1) 1 ) $name ) | indent 2 }}
+        {{ end }}
+      volumes:
+      - name: cm-multi-file-volume
+        configMap:
+          name: cm-multi-file
   volumeClaimTemplates:
   - metadata:
       name: datadir
