@@ -28,7 +28,7 @@ spec:
             acl-mode-file: /etc/commitlog/model.conf
             acl-policy-file: /etc/commitlog/policy.csv
             rpc-port: {{.Values.rpcPort}}
-            bind-addr: "$HOSTNAME.commitlog.{{.Release.Namespace}}.svc.cluster.local:{{.Values.serfPort}}"
+            bind-addr: "0.0.0.0:{{.Values.serfPort}}"
             bootstrap: $([ $ID = 0 ] && echo true || echo false)
             $([ $ID != 0 ] && echo 'start-join-addrs: "commitlog-0.commitlog.{{.Release.Namespace}}.svc.cluster.local:{{.Values.serfPort}}"')
             EOD
