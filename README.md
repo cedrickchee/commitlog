@@ -93,7 +93,7 @@ mv *.pem *.csr /home/neo/dev/work/repo/github/commitlog/.config
 ## Test
 
 Now, run your tests with `$ make test`. If all is well, your tests pass and
-you’ve made a distributed service that can replicate data.
+you've made a distributed service that can replicate data.
 
 ```sh
 # Test output
@@ -129,8 +129,8 @@ follower becomes a candidate and begins an election to decide the next leader.
 ### Log Replication
 
 The leader accepts client requests, each of which represents some command to run
-across the cluster. (In a key-value service for example, you’d have a command to
-assign a key’s value.) For each request, the leader appends the command to its
+across the cluster. (In a key-value service for example, you'd have a command to
+assign a key's value.) For each request, the leader appends the command to its
 log and then requests its followers to append the command to their logs. After a
 majority of followers have replicated the command—when the leader considers the
 command committed—the leader executes the command with a finite-state machine
@@ -322,3 +322,219 @@ google.golang.org/grpc.(*Server).serveStreams.func1.2
 PASS
 ok  	command-line-arguments	13.088s
 ```
+
+## Deployment
+
+### Deploy Applications with Kubernetes Locally
+
+We will deploy a cluster of our service. We will:
+
+- Set up with Kubernetes and Helm so that we can orchestrate our service on both
+  our local machine and later on a cloud platform.
+- Run a cluster of your service on your machine.
+
+**Install `kubectl`**
+
+The Kubernetes command-line tool, `kubectl`, is used to run commands against
+Kubernetes clusters.
+
+If you're using Linux, you can install `kubectl` by referring to 
+["Install and Set Up kubectl on Linux"](https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/)
+
+We need a Kubernetes cluster and its API for `kubectl` to call and do anything.
+We'll use the Kind tool to run a local Kubernetes cluster in Docker.
+
+#### Use Kind for Local Development and Continuous Integration
+
+[Kind](https://kind.sigs.k8s.io) is a tool developed by the Kubernetes team to
+run local Kubernetes clusters using Docker containers as nodes.
+
+To install Kind, run the following:
+
+```sh
+$ go get sigs.k8s.io/kind
+go: downloading sigs.k8s.io/kind v0.11.1
+go: downloading github.com/spf13/cobra v1.1.1
+go: downloading github.com/alessio/shellescape v1.4.1
+go: downloading golang.org/x/sys v0.0.0-20210124154548-22da62e12c0c
+go: downloading github.com/BurntSushi/toml v0.3.1
+go: downloading github.com/evanphx/json-patch/v5 v5.2.0
+go: downloading github.com/pelletier/go-toml v1.8.1
+go: downloading gopkg.in/yaml.v2 v2.2.8
+```
+
+You can create a Kind cluster by running:
+
+```sh
+$ kind create cluster
+Creating cluster "kind" ...
+ ✓ Ensuring node image (kindest/node:v1.21.1) 🖼 
+ ✓ Preparing nodes 📦  
+ ✓ Writing configuration 📜 
+ ✓ Starting control-plane 🕹️ 
+ ✓ Installing CNI 🔌 
+ ✓ Installing StorageClass 💾 
+Set kubectl context to "kind-kind"
+You can now use your cluster with:
+
+kubectl cluster-info --context kind-kind
+
+Thanks for using kind! 😊
+```
+
+You can then verify that Kind created your cluster and configured `kubectl` to
+use it by running the following:
+
+```sh
+$ kubectl cluster-info
+> Kubernetes control plane is running at https://127.0.0.1:36313
+CoreDNS is running at https://127.0.0.1:36313/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+```
+
+We have a running Kubernetes cluster now--let's run our service on it.
+
+To run our service in Kubernetes, we'll need a Docker image, and our Docker
+image will need an executable entry point. We've written an agent CLI that
+serves as our service's executable.
+
+### Build Your Docker Image
+
+Build the image and load it into your Kind cluster by running:
+
+```sh
+$ make build-docker
+docker build -t github.com/cedrickchee/commitlog:0.0.1 .
+Sending build context to Docker daemon  1.341MB
+Step 1/7 : FROM golang:1.17.3-alpine AS build
+1.17.3-alpine: Pulling from library/golang
+97518928ae5f: Pull complete 
+b78c28b3bbf7: Pull complete 
+248309d37e25: Pull complete 
+c91f41641737: Pull complete 
+e372233a5e04: Pull complete 
+Digest: sha256:55da409cc0fe11df63a7d6962fbefd1321fedc305d9969da636876893e289e2d
+Status: Downloaded newer image for golang:1.17.3-alpine
+ ---> 3a38ce03c951
+Step 2/7 : WORKDIR /go/src/commitlog
+ ---> Running in 45cf5ec9d633
+Removing intermediate container 45cf5ec9d633
+ ---> 8e78d40c5f5d
+Step 3/7 : COPY . .
+ ---> 60bc04f1db2f
+Step 4/7 : RUN CGO_ENABLED=0 go build -o /go/bin/commitlog ./cmd/commitlog
+ ---> Running in 9ddbb287dae4
+go: downloading github.com/spf13/cobra v1.2.1
+go: downloading github.com/spf13/viper v1.9.0        
+go: downloading github.com/hashicorp/raft v1.1.1
+go: downloading github.com/soheilhy/cmux v0.1.5     
+go: downloading go.uber.org/zap v1.19.1
+...
+go: downloading github.com/mattn/go-colorable v0.1.6
+go: downloading github.com/hashicorp/errwrap v1.0.0
+go: downloading golang.org/x/crypto v0.0.0-20210817164053-32db794688a5
+Removing intermediate container 9ddbb287dae4
+ ---> 6d2eb3145770
+Step 5/7 : FROM scratch
+ ---> 
+Step 6/7 : COPY --from=build /go/bin/commitlog /bin/commitlog
+ ---> bd5bc56b75bf
+Step 7/7 : ENTRYPOINT ["/bin/commitlog"]
+ ---> Running in 98d7271a2a24
+Removing intermediate container 98d7271a2a24
+ ---> 2d0f44d05f46
+Successfully built 2d0f44d05f46
+Successfully tagged github.com/cedrickchee/commitlog:0.0.1
+
+$ kind load docker-image github.com/cedrickchee/commitlog:0.0.1
+Image: "github.com/cedrickchee/commitlog:0.0.1" with ID "sha256:2d0f44d05f46ecbf6860bd5240bfbd90d4cf4814f3fd90c1bee3c75d7bb460bc" not yet present on node "kind-control-plane", loading...
+```
+
+### Configure and Deploy Your Service with Helm
+
+Let's look at how we can configure and run a cluster of our service in
+Kubernetes with Helm.
+
+[Helm](https://helm.sh) is the package manager for Kubernetes that enables you
+to distribute and install services in Kubernetes.
+
+To [install Helm from script](https://helm.sh/docs/intro/install/#from-script),
+run this command:
+
+```sh
+$ curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+$ chmod 700 get_helm.sh
+
+# workaround script broke on linux: the https://github.com/helm/helm/issues/10266
+$ export DESIRED_VERSION=v3.7.1
+$ ./get_helm.sh
+Downloading https://get.helm.sh/helm-v3.7.1-linux-amd64.tar.gz
+Verifying checksum... Done.
+Preparing to install helm into /usr/local/bin
+helm installed into /usr/local/bin/helm
+```
+
+Now we're ready to deploy the service in our Kubernetes cluster.
+
+#### Install Your Helm Chart
+
+We can install our Helm chart in our Kind cluster to run a cluster of our service.
+
+You can see what Helm renders by running:
+
+```sh
+$ helm template commitlog deploy/commitlog
+```
+
+Now, install the Chart by running this command:
+
+```sh
+$ helm install commitlog deploy/commitlog
+NAME: commitlog
+LAST DEPLOYED: Tue Nov 16 23:00:38 2021
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+```
+
+Wait a few seconds and you'll see Kubernetes set up three pods. You can list
+them by running `$ kubectl get pods`. When all three pods are ready, we can try
+requesting the API.
+
+```sh
+NAME          READY   STATUS    RESTARTS   AGE
+commitlog-0   1/1     Running   0          3m37s
+commitlog-1   1/1     Running   0          2m27s
+commitlog-2   1/1     Running   0          77s
+```
+
+We can tell Kubernetes to forward a pod or a Service's port to a port on your
+computer so you can request a service running inside Kubernetes without a load
+balancer:
+
+```sh
+$ kubectl port-forward pod/commitlog-0 8500:8400
+Forwarding from 127.0.0.1:8500 -> 8400
+Forwarding from [::1]:8500 -> 8400
+```
+
+Now we can request our service from a program running outside Kubernetes at
+`:8500`.
+
+Run the command to request our service to get and print the list of servers:
+
+```sh
+$ go run cmd/getservers/main.go -addr=":8500"
+```
+
+You should see the following output:
+
+```sh
+servers:
+- id:"commitlog-0" rpc_addr:"0.0.0.0:8400"
+- id:"commitlog-1" rpc_addr:"0.0.0.0:8400"
+- id:"commitlog-2" rpc_addr:"0.0.0.0:8400"
+```
+
+This means all three servers in our cluster have successfully joined the cluster
+and are coordinating with each other.
