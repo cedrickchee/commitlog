@@ -177,7 +177,7 @@ func (a *Agent) setupLog() error {
 		return err
 	}
 	if a.Config.Bootstrap {
-		err = a.log.WaitForLeader(3 * time.Second)
+		err = a.log.WaitForLeader(120 * time.Second)
 	}
 
 	return err
