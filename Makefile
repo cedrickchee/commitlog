@@ -157,6 +157,6 @@ delete-local-cluster:
 	kind delete cluster
 
 .PHONY: cleanup-local-cluster
-delete-cluster:
+cleanup-local-cluster:
 	make uninstall-chart
 	make delete-local-cluster
