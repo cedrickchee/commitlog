@@ -130,6 +130,12 @@ local-install-chart:
 	# Install our Helm chart in our Kind cluster
 	helm install commitlog deploy/commitlog
 
+.PHONY: local-install-metacontroller
+local-install-metacontroller:
+	# Install our Metacontroller chart in our Kind cluster
+	kubectl create namespace metacontroller
+	helm install metacontroller deploy/metacontroller
+
 # List Kubernetes pods
 .PHONY: local-list-pods
 local-list-pods:
