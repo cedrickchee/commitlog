@@ -2,6 +2,10 @@
 
 Commitlog is a distributed commit log service.
 
+This project was created to learn and make a distributed service from first
+principles -- distributed computing ideas like service discovery, consensus, and
+load balancing.
+
 ## Build a Log Package
 
 Logs—which are sometimes also called _write-ahead logs_, _transaction logs_, or
