@@ -538,3 +538,95 @@ servers:
 
 This means all three servers in our cluster have successfully joined the cluster
 and are coordinating with each other.
+
+#### Deploy Service with Kubernetes to the Cloud
+
+1. Create a Google Kubernetes Engine (GKE) cluster
+   - Sign up with Google Cloud
+   - Create a Kubernetes cluster
+   - Install and authenticate gcloud CLI
+	 
+	 Get your project's ID, and configure gcloud to use the project by default 
+	 by running the following:
+
+		```sh
+		$ PROJECT_ID=$(gcloud projects list | tail -n 1 | cut -d' ' -f1)
+		$ gcloud config set project $PROJECT_ID
+		```
+
+   - Push our service's image to Google's Container Registry (GCR)
+
+		```sh
+		$ gcloud auth configure-docker
+		$ docker tag github.com/cedrickchee/commitlog:0.0.1 \
+			gcr.io/$PROJECT_ID/commitlog:0.0.1
+		$ docker push gcr.io/$PROJECT_ID/commitlog:0.0.1
+		```
+
+	- Configure kubectl
+
+	  The last bit of setup allows kubectl and Helm to call our GKE cluster:
+
+		```sh
+		$ gcloud container clusters get-credentials commitlog --zone us-central1-a
+		Fetching cluster endpoint and auth data.
+		kubeconfig entry generated for commitlog.
+		```
+
+2. Install Metacontroller
+   
+   [Metacontroller](https://metacontroller.app) is a Kubernetes add-on that
+   makes it easy to write and deploy custom controllers with simple scripts.
+
+   Install the Metacontroller chart:
+
+	```sh
+	$ kubectl create namespace metacontroller
+	$ helm install metacontroller metacontroller
+	NAME: metacontroller
+	LAST DEPLOYED: Sat Nov 20 23:33:42 2021
+	NAMESPACE: default
+	STATUS: deployed
+	REVISION: 1
+	TEST SUITE: None
+	```
+
+3. Deploy our service to our GKE cluster and try it.
+
+Deploy our distributed service to the Cloud. Run the following command:
+
+```sh
+$ helm install commitlog commitlog \
+--set image.repository=gcr.io/$PROJECT_ID/commitlog \
+--set service.lb=true
+```
+
+You can watch as the services come up by passing the `-w` flag:
+
+```sh
+$ kubectl get services -w
+NAME          TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)                      AGE
+commitlog     ClusterIP      None           <none>        8400/TCP,8401/TCP,8401/UDP   8m53s
+commitlog-0   LoadBalancer   10.96.149.92   <pending>     8400:32735/TCP               8m25s
+commitlog-1   LoadBalancer   10.96.15.175   <pending>     8400:30945/TCP               8m25s
+commitlog-2   LoadBalancer   10.96.90.220   <pending>     8400:32552/TCP               8m25s
+kubernetes    ClusterIP      10.96.0.1      <none>        443/TCP                      14m
+```
+
+When all three load balancers are up, we can verify that our client connects to
+our service running in the Cloud and that our service nodes discovered each
+other:
+
+```sh
+$ ADDR=$(kubectl get service -l app=service-per-pod -o go-template=\
+'{{range .items}}\
+{{(index .status.loadBalancer.ingress 0).ip}}{{"\n"}}\
+{{end}}'\
+| head -n 1)
+
+$ go run cmd/getservers/main.go -addr=$ADDR:8400
+servers:
+- id:"commitlog-0" rpc_addr:"commitlog-0.commitlog.default.svc.cluster.local:8400"
+- id:"commitlog-1" rpc_addr:"commitlog-1.commitlog.default.svc.cluster.local:8400"
+- id:"commitlog-2" rpc_addr:"commitlog-2.commitlog.default.svc.cluster.local:8400"
+```
